@@ -9,279 +9,77 @@ import pandas as pd
 # =======================
 
 
-def convert_age(val):
-    if pd.isna(val): return np.nan
-    try:
-        base = int(str(val)[:-1])
-        return base if str(val)[-1] == "a" else base + 5
-    except:
-        return np.nan
+# 'Age'컬럼 시각화 및 데이터 활용을 위한 전처리
+def convert_age_to_numeric(age_str):
+    if isinstance(age_str, str) and len(age_str) > 1 :
+        decade = int(age_str[:-1])
+        group = age_str[-1]
+        if group == 'a' : return decade + 2
+        elif group == 'b' : return decade + 7
+    try : return int(age_str)
+    except (ValueError, TypeError) : return np.nan
+    
+def align_to_model(df, model):
+    df_set = df.copy()
+    df_set
+    y = df_set['Label']
 
-def split_testdate(val):
-    try:
-        v = int(val)
-        return v // 100, v % 100
-    except:
-        return np.nan, np.nan
 
-def seq_mean(series):
-    return series.fillna("").progress_apply(
-        lambda x: np.fromstring(x, sep=",").mean() if x else np.nan
-    )
-
-def seq_std(series):
-    return series.fillna("").progress_apply(
-        lambda x: np.fromstring(x, sep=",").std() if x else np.nan
-    )
-
-def seq_rate(series, target="1"):
-    return series.fillna("").progress_apply(
-        lambda x: str(x).split(",").count(target) / len(x.split(",")) if x else np.nan
-    )
-
-def masked_mean_from_csv_series(cond_series, val_series, mask_val):
-    cond_df = cond_series.fillna("").str.split(",", expand=True).replace("", np.nan)
-    val_df  = val_series.fillna("").str.split(",", expand=True).replace("", np.nan)
-    cond_arr = cond_df.to_numpy(dtype=float)
-    val_arr  = val_df.to_numpy(dtype=float)
-    mask = (cond_arr == mask_val)
-    with np.errstate(invalid="ignore"):
-        sums = np.nansum(np.where(mask, val_arr, np.nan), axis=1)
-        counts = np.sum(mask, axis=1)
-        out = sums / np.where(counts==0, np.nan, counts)
-    return pd.Series(out, index=cond_series.index)
-
-def masked_mean_in_set_series(cond_series, val_series, mask_set):
-    cond_df = cond_series.fillna("").str.split(",", expand=True).replace("", np.nan)
-    val_df  = val_series.fillna("").str.split(",", expand=True).replace("", np.nan)
-    cond_arr = cond_df.to_numpy(dtype=float)
-    val_arr  = val_df.to_numpy(dtype=float)
-    mask = np.isin(cond_arr, list(mask_set))
-    with np.errstate(invalid="ignore"):
-        sums = np.nansum(np.where(mask, val_arr, np.nan), axis=1)
-        counts = np.sum(mask, axis=1)
-        out = sums / np.where(counts == 0, np.nan, counts)
-    return pd.Series(out, index=cond_series.index)
 
 # =======================
 # 학습 때 사용한 A/B 검사 전처리 (그대로)
 # =======================
 def preprocess_A(train_A):
     df = train_A.copy()
-    print("Step 1: Age, TestDate 파생...")
-    df["Age_num"] = df["Age"].map(convert_age)
-    ym = df["TestDate"].map(split_testdate)
-    df["Year"] = [y for y, m in ym]
-    df["Month"] = [m for y, m in ym]
+    print("Step 1: 전처리 및 사용컬럼 선정...")
+    df['Age'] = df['Age'].apply(convert_age_to_numeric)
+    
+    print("Step 2: feature 생성...")
+    df['A1-3'] = df['A1-3'].apply(lambda x : x.split(',').count('1'))
+    df['A2-3'] = df['A2-3'].apply(lambda x : x.split(',').count('1'))
+    df['A3-6'] = df['A3-6'].apply(lambda x : x.split(',').count('1'))
+    df['A3-7'] = df['A3-7'].astype(str).apply(lambda x : round(np.mean([float(num)*0.001 for num in x.split(',')]), 2))
+    df['A4-3'] = df['A4-3'].apply(lambda x : x.split(',').count('2'))
+    df['A4-5'] = df['A4-5'].astype(str).apply(lambda x : round(np.mean([float(num)*0.001 for num in x.split(',')]), 2))
+    df['A5-2'] = df['A5-2'].apply(lambda x : x.split(',').count('2'))
 
-    feats = pd.DataFrame(index=df.index)
+    # 모델 A 학습에 사용된 피처만 선택 (Test_id는 나중에 사용하기 위해 포함)
+    feature_cols = ['Test_id', 'Age', 'A1-3', 'A2-3', 'A3-6', 'A3-7', 'A4-3', 'A4-5', 'A5-2', 'A6-1',
+                    'A7-1', 'A8-1', 'A8-2', 'A9-1', 'A9-2', 'A9-3', 'A9-4', 'A9-5']
+    # 일부 피처는 feature 생성 과정에서 사용되지 않았으므로, 원본 데이터에 해당 컬럼이 없을 수 있습니다.
+    # 존재하는 컬럼만 선택하도록 수정합니다.
+    return df[[col for col in feature_cols if col in df.columns]]
 
-    print("Step 2: A1 feature 생성...")
-    feats["A1_resp_rate"] = seq_rate(df["A1-3"], "1")
-    feats["A1_rt_mean"]   = seq_mean(df["A1-4"])
-    feats["A1_rt_std"]    = seq_std(df["A1-4"])
-    feats["A1_rt_left"]   = masked_mean_from_csv_series(df["A1-1"], df["A1-4"], 1)
-    feats["A1_rt_right"]  = masked_mean_from_csv_series(df["A1-1"], df["A1-4"], 2)
-    feats["A1_rt_side_diff"] = feats["A1_rt_left"] - feats["A1_rt_right"]
-    feats["A1_rt_slow"]   = masked_mean_from_csv_series(df["A1-2"], df["A1-4"], 1)
-    feats["A1_rt_fast"]   = masked_mean_from_csv_series(df["A1-2"], df["A1-4"], 3)
-    feats["A1_rt_speed_diff"] = feats["A1_rt_slow"] - feats["A1_rt_fast"]
-
-    print("Step 3: A2 feature 생성...")
-    feats["A2_resp_rate"] = seq_rate(df["A2-3"], "1")
-    feats["A2_rt_mean"]   = seq_mean(df["A2-4"])
-    feats["A2_rt_std"]    = seq_std(df["A2-4"])
-    feats["A2_rt_cond1_diff"] = masked_mean_from_csv_series(df["A2-1"], df["A2-4"], 1) - \
-                                masked_mean_from_csv_series(df["A2-1"], df["A2-4"], 3)
-    feats["A2_rt_cond2_diff"] = masked_mean_from_csv_series(df["A2-2"], df["A2-4"], 1) - \
-                                masked_mean_from_csv_series(df["A2-2"], df["A2-4"], 3)
-
-    print("Step 4: A3 feature 생성...")
-    s = df["A3-5"].fillna("")
-    total   = s.apply(lambda x: len(x.split(",")) if x else 0)
-    valid   = s.apply(lambda x: sum(v in {"1","2"} for v in x.split(",")) if x else 0)
-    invalid = s.apply(lambda x: sum(v in {"3","4"} for v in x.split(",")) if x else 0)
-    correct = s.apply(lambda x: sum(v in {"1","3"} for v in x.split(",")) if x else 0)
-    feats["A3_valid_ratio"]   = (valid / total).replace([np.inf,-np.inf], np.nan)
-    feats["A3_invalid_ratio"] = (invalid / total).replace([np.inf,-np.inf], np.nan)
-    feats["A3_correct_ratio"] = (correct / total).replace([np.inf,-np.inf], np.nan)
-
-    feats["A3_resp2_rate"] = seq_rate(df["A3-6"], "1")
-    feats["A3_rt_mean"]    = seq_mean(df["A3-7"])
-    feats["A3_rt_std"]     = seq_std(df["A3-7"])
-    feats["A3_rt_size_diff"] = masked_mean_from_csv_series(df["A3-1"], df["A3-7"], 1) - \
-                               masked_mean_from_csv_series(df["A3-1"], df["A3-7"], 2)
-    feats["A3_rt_side_diff"] = masked_mean_from_csv_series(df["A3-3"], df["A3-7"], 1) - \
-                               masked_mean_from_csv_series(df["A3-3"], df["A3-7"], 2)
-
-    print("Step 5: A4 feature 생성...")
-    feats["A4_acc_rate"]   = seq_rate(df["A4-3"], "1")
-    feats["A4_resp2_rate"] = seq_rate(df["A4-4"], "1")
-    feats["A4_rt_mean"]    = seq_mean(df["A4-5"])
-    feats["A4_rt_std"]     = seq_std(df["A4-5"])
-    feats["A4_stroop_diff"] = masked_mean_from_csv_series(df["A4-1"], df["A4-5"], 2) - \
-                              masked_mean_from_csv_series(df["A4-1"], df["A4-5"], 1)
-    feats["A4_rt_color_diff"] = masked_mean_from_csv_series(df["A4-2"], df["A4-5"], 1) - \
-                                masked_mean_from_csv_series(df["A4-2"], df["A4-5"], 2)
-
-    print("Step 6: A5 feature 생성...")
-    feats["A5_acc_rate"]   = seq_rate(df["A5-2"], "1")
-    feats["A5_resp2_rate"] = seq_rate(df["A5-3"], "1")
-    feats["A5_acc_nonchange"] = masked_mean_from_csv_series(df["A5-1"], df["A5-2"], 1)
-    feats["A5_acc_change"]    = masked_mean_in_set_series(df["A5-1"], df["A5-2"], {2,3,4})
-
-    print("Step 7: 시퀀스 컬럼 drop & concat...")
-    seq_cols = [
-        "A1-1","A1-2","A1-3","A1-4",
-        "A2-1","A2-2","A2-3","A2-4",
-        "A3-1","A3-2","A3-3","A3-4","A3-5","A3-6","A3-7",
-        "A4-1","A4-2","A4-3","A4-4","A4-5",
-        "A5-1","A5-2","A5-3"
-    ]
-    print("A 검사 데이터 전처리 완료")
-    out = pd.concat([df.drop(columns=seq_cols, errors="ignore"), feats], axis=1)
-    out.replace([np.inf,-np.inf], np.nan, inplace=True)
-    return out
 
 def preprocess_B(train_B):
     df = train_B.copy()
-    print("Step 1: Age, TestDate 파생...")
-    df["Age_num"] = df["Age"].map(convert_age)
-    ym = df["TestDate"].map(split_testdate)
-    df["Year"] = [y for y, m in ym]
-    df["Month"] = [m for y, m in ym]
+    print("Step 1: 전처리 및 사용컬럼 선정...")
+    df['Age'] = df['Age'].apply(convert_age_to_numeric)
 
-    feats = pd.DataFrame(index=df.index)
+    print("Step 2: feature 생성...")
+    df['B1-1'] = df['B1-1'].apply(lambda x : x.split(',').count('2'))
+    df['B1-3'] = df['B1-3'].apply(lambda x : len([int(i) for i in x.split(',') if int(i) in (2, 4)]))
+    df['B2-1'] = df['B2-1'].apply(lambda x : x.split(',').count('2'))
+    df['B2-3'] = df['B2-3'].apply(lambda x : len([i for i in x.split(',') if int(i) in (2, 4)]))
+    df['B3-1'] = df['B3-1'].apply(lambda x : x.split(',').count('2'))
+    df['B3-2'] = df['B3-2'].apply(lambda x : round(np.mean([float(num) for num in x.split(',')]), 2))
+    df['B4-1'] = df['B4-1'].apply(lambda x : len([int(i) for i in x.split(',') if int(i) in (2, 4, 6)]))
+    df['B4-2'] = df['B4-2'].apply(lambda x : round(np.mean([float(num) for num in x.split(',')]), 2))
+    df['B5-1'] = df['B5-1'].apply(lambda x : x.split(',').count('2'))
+    df['B5-2'] = df['B5-2'].apply(lambda x : round(np.mean([float(num) for num in x.split(',')]), 2))
+    df['B6'] = df['B6'].apply(lambda x : x.split(',').count('2'))
+    df['B7'] = df['B7'].apply(lambda x : x.split(',').count('2'))
+    df['B8'] = df['B8'].apply(lambda x : x.split(',').count('2'))
+    df['B10-6'] = df['B10-6'].apply(lambda x : 20 - int(x))
 
-    print("Step 2: B1 feature 생성...")
-    feats["B1_acc_task1"] = seq_rate(df["B1-1"], "1")
-    feats["B1_rt_mean"]   = seq_mean(df["B1-2"])
-    feats["B1_rt_std"]    = seq_std(df["B1-2"])
-    feats["B1_acc_task2"] = seq_rate(df["B1-3"], "1")
+    # 모델 B 학습에 사용된 피처만 선택 (Test_id는 나중에 사용하기 위해 포함)
+    feature_cols = ['Test_id', 'Age', 'B1-1', 'B1-3', 'B2-1', 'B2-3', 'B3-1', 'B3-2', 'B4-1', 'B4-2', 'B5-1',
+                    'B5-2', 'B6', 'B7', 'B8', 'B9-2', 'B9-3', 'B9-5', 'B10-2', 'B10-3', 'B10-5',
+                    'B10-6']
+    # 존재하는 컬럼만 선택하도록 수정합니다.
+    return df[[col for col in feature_cols if col in df.columns]]
 
-    print("Step 3: B2 feature 생성...")
-    feats["B2_acc_task1"] = seq_rate(df["B2-1"], "1")
-    feats["B2_rt_mean"]   = seq_mean(df["B2-2"])
-    feats["B2_rt_std"]    = seq_std(df["B2-2"])
-    feats["B2_acc_task2"] = seq_rate(df["B2-3"], "1")
 
-    print("Step 4: B3 feature 생성...")
-    feats["B3_acc_rate"] = seq_rate(df["B3-1"], "1")
-    feats["B3_rt_mean"]  = seq_mean(df["B3-2"])
-    feats["B3_rt_std"]   = seq_std(df["B3-2"])
-
-    print("Step 5: B4 feature 생성...")
-    feats["B4_acc_rate"] = seq_rate(df["B4-1"], "1")
-    feats["B4_rt_mean"]  = seq_mean(df["B4-2"])
-    feats["B4_rt_std"]   = seq_std(df["B4-2"])
-
-    print("Step 6: B5 feature 생성...")
-    feats["B5_acc_rate"] = seq_rate(df["B5-1"], "1")
-    feats["B5_rt_mean"]  = seq_mean(df["B5-2"])
-    feats["B5_rt_std"]   = seq_std(df["B5-2"])
-
-    print("Step 7: B6~B8 feature 생성...")
-    feats["B6_acc_rate"] = seq_rate(df["B6"], "1")
-    feats["B7_acc_rate"] = seq_rate(df["B7"], "1")
-    feats["B8_acc_rate"] = seq_rate(df["B8"], "1")
-
-    print("Step 8: 시퀀스 컬럼 drop & concat...")
-    seq_cols = [
-        "B1-1","B1-2","B1-3",
-        "B2-1","B2-2","B2-3",
-        "B3-1","B3-2",
-        "B4-1","B4-2",
-        "B5-1","B5-2",
-        "B6","B7","B8"
-    ]
-    print("B 검사 데이터 전처리 완료")
-    out = pd.concat([df.drop(columns=seq_cols, errors="ignore"), feats], axis=1)
-    out.replace([np.inf,-np.inf], np.nan, inplace=True)
-    return out
-
-# =======================
-# 학습 때 사용한 파생 (그대로)
-# =======================
-def _has(df, cols):  return all(c in df.columns for c in cols)
-def _safe_div(a, b, eps=1e-6): return a / (b + eps)
-
-def add_features_A(df: pd.DataFrame) -> pd.DataFrame:
-    feats = df.copy(); eps = 1e-6
-    if _has(feats, ["Year","Month"]):
-        feats["YearMonthIndex"] = feats["Year"] * 12 + feats["Month"]
-
-    if _has(feats, ["A1_rt_mean","A1_resp_rate"]):
-        feats["A1_speed_acc_tradeoff"] = _safe_div(feats["A1_rt_mean"], feats["A1_resp_rate"], eps)
-    if _has(feats, ["A2_rt_mean","A2_resp_rate"]):
-        feats["A2_speed_acc_tradeoff"] = _safe_div(feats["A2_rt_mean"], feats["A2_resp_rate"], eps)
-    if _has(feats, ["A4_rt_mean","A4_acc_rate"]):
-        feats["A4_speed_acc_tradeoff"] = _safe_div(feats["A4_rt_mean"], feats["A4_acc_rate"], eps)
-
-    for k in ["A1","A2","A3","A4"]:
-        m, s = f"{k}_rt_mean", f"{k}_rt_std"
-        if _has(feats, [m, s]):
-            feats[f"{k}_rt_cv"] = _safe_div(feats[s], feats[m], eps)
-
-    for name, base in [
-        ("A1_rt_side_gap_abs",  "A1_rt_side_diff"),
-        ("A1_rt_speed_gap_abs", "A1_rt_speed_diff"),
-        ("A2_rt_cond1_gap_abs", "A2_rt_cond1_diff"),
-        ("A2_rt_cond2_gap_abs", "A2_rt_cond2_diff"),
-        ("A4_stroop_gap_abs",   "A4_stroop_diff"),
-        ("A4_color_gap_abs",    "A4_rt_color_diff"),
-    ]:
-        if base in feats.columns:
-            feats[name] = feats[base].abs()
-
-    if _has(feats, ["A3_valid_ratio","A3_invalid_ratio"]):
-        feats["A3_valid_invalid_gap"] = feats["A3_valid_ratio"] - feats["A3_invalid_ratio"]
-    if _has(feats, ["A3_correct_ratio","A3_invalid_ratio"]):
-        feats["A3_correct_invalid_gap"] = feats["A3_correct_ratio"] - feats["A3_invalid_ratio"]
-    if _has(feats, ["A5_acc_change","A5_acc_nonchange"]):
-        feats["A5_change_nonchange_gap"] = feats["A5_acc_change"] - feats["A5_acc_nonchange"]
-
-    feats.replace([np.inf, -np.inf], np.nan, inplace=True)
-    return feats
-
-def add_features_B(df: pd.DataFrame) -> pd.DataFrame:
-    feats = df.copy(); eps = 1e-6
-    if _has(feats, ["Year","Month"]):
-        feats["YearMonthIndex"] = feats["Year"] * 12 + feats["Month"]
-
-    for k, acc_col, rt_col in [
-        ("B1", "B1_acc_task1", "B1_rt_mean"),
-        ("B2", "B2_acc_task1", "B2_rt_mean"),
-        ("B3", "B3_acc_rate",  "B3_rt_mean"),
-        ("B4", "B4_acc_rate",  "B4_rt_mean"),
-        ("B5", "B5_acc_rate",  "B5_rt_mean"),
-    ]:
-        if _has(feats, [rt_col, acc_col]):
-            feats[f"{k}_speed_acc_tradeoff"] = _safe_div(feats[rt_col], feats[acc_col], eps)
-
-    for k in ["B1","B2","B3","B4","B5"]:
-        m, s = f"{k}_rt_mean", f"{k}_rt_std"
-        if _has(feats, [m, s]):
-            feats[f"{k}_rt_cv"] = _safe_div(feats[s], feats[m], eps)
-
-    parts = []
-    for k in ["B4","B5"]:
-        if _has(feats, [f"{k}_rt_cv"]):
-            parts.append(0.25 * feats[f"{k}_rt_cv"].fillna(0))
-    for k in ["B3","B4","B5"]:
-        acc = f"{k}_acc_rate" if k not in ["B1","B2"] else None
-        if k in ["B1","B2"]:
-            acc = f"{k}_acc_task1"
-        if acc in feats:
-            parts.append(0.25 * (1 - feats[acc].fillna(0)))
-    for k in ["B1","B2"]:
-        tcol = f"{k}_speed_acc_tradeoff"
-        if tcol in feats:
-            parts.append(0.25 * feats[tcol].fillna(0))
-    if parts:
-        feats["RiskScore_B"] = sum(parts)
-
-    feats.replace([np.inf, -np.inf], np.nan, inplace=True)
-    return feats
 
 # =======================
 # 정렬/보정 (모델이 학습 때 본 피처 순서로)
@@ -290,11 +88,15 @@ DROP_COLS = ["Test_id","Test","PrimaryKey","Age","TestDate"]
 
 def align_to_model(X_df, model):
     feat_names = list(getattr(model, "feature_name_", []))
+    # If the model has no feature names, we must rely on the columns from preprocessing
     if not feat_names:
-        # fallback: 그냥 숫자형만
-        X = X_df.select_dtypes(include=[np.number]).copy()
+        # Fallback: use all numeric columns except Test_id
+        X = X_df.drop(columns=['Test_id'], errors='ignore').select_dtypes(include=np.number).copy()
+        # 모델이 기대하는 피처 개수와 맞는지 확인
+        expected_features = getattr(model, "n_features_in_", -1)
+        if expected_features != -1 and X.shape[1] != expected_features:
+            print(f"Warning: Number of features mismatch. Got {X.shape[1]}, but model expects {expected_features}.")
         return X.fillna(0.0)
-    X = X_df.drop(columns=[c for c in DROP_COLS if c in X_df.columns], errors="ignore").copy()
     # 누락 피처 0으로 채움
     for c in feat_names:
         if c not in X.columns:
@@ -309,15 +111,15 @@ def align_to_model(X_df, model):
 def main():
     # ---- 경로 변수 (필요에 따라 수정) ----
     TEST_DIR  = "./data"              # test.csv, A.csv, B.csv, sample_submission.csv 위치
-    MODEL_DIR = "./model"             # lgbm_A.pkl, lgbm_B.pkl 위치
+    MODEL_DIR = "./model"             # 로지스틱 모델(base model) 저장 위치
     OUT_DIR   = "./output"
     SAMPLE_SUB_PATH = os.path.join(TEST_DIR, "sample_submission.csv")
     OUT_PATH  = os.path.join(OUT_DIR, "submission.csv")
 
     # ---- 모델 로드 ----
     print("Load models...")
-    model_A = joblib.load(os.path.join(MODEL_DIR, "lgbm_A.pkl"))
-    model_B = joblib.load(os.path.join(MODEL_DIR, "lgbm_B.pkl"))
+    model_A = joblib.load(os.path.join(MODEL_DIR, "logistic_model_A.pkl"))
+    model_B = joblib.load(os.path.join(MODEL_DIR, "logistic_model_B.pkl"))
     print(" OK.")
 
     # ---- 테스트 데이터 로드 ----
@@ -326,19 +128,27 @@ def main():
     Araw = pd.read_csv(os.path.join(TEST_DIR, "./test/A.csv"))
     Braw = pd.read_csv(os.path.join(TEST_DIR, "./test/B.csv"))
     print(f" meta={len(meta)}, Araw={len(Araw)}, Braw={len(Braw)}")
-
+    
     # ---- 매핑 ----
-    A_df = meta.loc[meta["Test"] == "A", ["Test_id", "Test"]].merge(Araw, on="Test_id", how="left")
-    B_df = meta.loc[meta["Test"] == "B", ["Test_id", "Test"]].merge(Braw, on="Test_id", how="left")
+    A_df = meta.loc[meta["Test"] == "A", ["Test_id", "Test"]].merge(Araw, on=["Test_id", "Test"], how="left")
+    B_df = meta.loc[meta["Test"] == "B", ["Test_id", "Test"]].merge(Braw, on=["Test_id", "Test"], how="left")
     print(f" mapped: A={len(A_df)}, B={len(B_df)}")
+    # [디버깅] merge 직후 'Test' 컬럼 존재 여부 확인
+    print(f"DEBUG: 'Test' in A_df after merge? {'Test' in A_df.columns}")
+    print(f"DEBUG: 'Test' in B_df after merge? {'Test' in B_df.columns}")
+    print("-" * 30)
 
-    # ---- 전처리 → 파생 (학습과 동일) ----
-    A_feat = add_features_A(preprocess_A(A_df)) if len(A_df) else pd.DataFrame()
-    B_feat = add_features_B(preprocess_B(B_df)) if len(B_df) else pd.DataFrame()
+    # ---- 전처리 ----
+    A_df = preprocess_A(A_df)
+    B_df = preprocess_B(B_df)
+    # [디버깅] 전처리 함수 실행 후 'Test' 컬럼 존재 여부 확인
+    print(f"DEBUG: 'Test' in A_df after preprocess? {'Test' in A_df.columns}")
+    print(f"DEBUG: 'Test' in B_df after preprocess? {'Test' in B_df.columns}")
+    print("-" * 30)
 
     # ---- 피처 정렬/보정 ----
-    XA = align_to_model(A_feat, model_A) if len(A_feat) else pd.DataFrame(columns=getattr(model_A,"feature_name_",[]))
-    XB = align_to_model(B_feat, model_B) if len(B_feat) else pd.DataFrame(columns=getattr(model_B,"feature_name_",[]))
+    XA = align_to_model(A_df, model_A)
+    XB = align_to_model(B_df, model_B)
     print(f" aligned: XA={XA.shape}, XB={XB.shape}")
 
     # ---- 예측 ----
