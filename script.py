@@ -18,12 +18,6 @@ def convert_age_to_numeric(age_str):
         elif group == 'b' : return decade + 7
     try : return int(age_str)
     except (ValueError, TypeError) : return np.nan
-    
-def align_to_model(df, model):
-    df_set = df.copy()
-    df_set
-    y = df_set['Label']
-
 
 
 # =======================
@@ -35,13 +29,13 @@ def preprocess_A(train_A):
     df['Age'] = df['Age'].apply(convert_age_to_numeric)
     
     print("Step 2: feature 생성...")
-    df['A1-3'] = df['A1-3'].apply(lambda x : x.split(',').count('1'))
-    df['A2-3'] = df['A2-3'].apply(lambda x : x.split(',').count('1'))
-    df['A3-6'] = df['A3-6'].apply(lambda x : x.split(',').count('1'))
-    df['A3-7'] = df['A3-7'].astype(str).apply(lambda x : round(np.mean([float(num)*0.001 for num in x.split(',')]), 2))
-    df['A4-3'] = df['A4-3'].apply(lambda x : x.split(',').count('2'))
-    df['A4-5'] = df['A4-5'].astype(str).apply(lambda x : round(np.mean([float(num)*0.001 for num in x.split(',')]), 2))
-    df['A5-2'] = df['A5-2'].apply(lambda x : x.split(',').count('2'))
+    df['A1-3'] = df['A1-3'].apply(lambda x: x.split(',').count('1') if isinstance(x, str) else 0)
+    df['A2-3'] = df['A2-3'].apply(lambda x: x.split(',').count('1') if isinstance(x, str) else 0)
+    df['A3-6'] = df['A3-6'].apply(lambda x: x.split(',').count('1') if isinstance(x, str) else 0)
+    df['A3-7'] = df['A3-7'].apply(lambda x: round(np.mean([float(num) * 0.001 for num in x.split(',')]), 2) if isinstance(x, str) else 0)
+    df['A4-3'] = df['A4-3'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['A4-5'] = df['A4-5'].apply(lambda x: round(np.mean([float(num) * 0.001 for num in x.split(',')]), 2) if isinstance(x, str) else 0)
+    df['A5-2'] = df['A5-2'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
 
     # 모델 A 학습에 사용된 피처만 선택 (Test_id는 나중에 사용하기 위해 포함)
     feature_cols = ['Test_id', 'Age', 'A1-3', 'A2-3', 'A3-6', 'A3-7', 'A4-3', 'A4-5', 'A5-2', 'A6-1',
@@ -57,20 +51,20 @@ def preprocess_B(train_B):
     df['Age'] = df['Age'].apply(convert_age_to_numeric)
 
     print("Step 2: feature 생성...")
-    df['B1-1'] = df['B1-1'].apply(lambda x : x.split(',').count('2'))
-    df['B1-3'] = df['B1-3'].apply(lambda x : len([int(i) for i in x.split(',') if int(i) in (2, 4)]))
-    df['B2-1'] = df['B2-1'].apply(lambda x : x.split(',').count('2'))
-    df['B2-3'] = df['B2-3'].apply(lambda x : len([i for i in x.split(',') if int(i) in (2, 4)]))
-    df['B3-1'] = df['B3-1'].apply(lambda x : x.split(',').count('2'))
-    df['B3-2'] = df['B3-2'].apply(lambda x : round(np.mean([float(num) for num in x.split(',')]), 2))
-    df['B4-1'] = df['B4-1'].apply(lambda x : len([int(i) for i in x.split(',') if int(i) in (2, 4, 6)]))
-    df['B4-2'] = df['B4-2'].apply(lambda x : round(np.mean([float(num) for num in x.split(',')]), 2))
-    df['B5-1'] = df['B5-1'].apply(lambda x : x.split(',').count('2'))
-    df['B5-2'] = df['B5-2'].apply(lambda x : round(np.mean([float(num) for num in x.split(',')]), 2))
-    df['B6'] = df['B6'].apply(lambda x : x.split(',').count('2'))
-    df['B7'] = df['B7'].apply(lambda x : x.split(',').count('2'))
-    df['B8'] = df['B8'].apply(lambda x : x.split(',').count('2'))
-    df['B10-6'] = df['B10-6'].apply(lambda x : 20 - int(x))
+    df['B1-1'] = df['B1-1'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['B1-3'] = df['B1-3'].apply(lambda x: len([int(i) for i in x.split(',') if int(i) in (2, 4)]) if isinstance(x, str) else 0)
+    df['B2-1'] = df['B2-1'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['B2-3'] = df['B2-3'].apply(lambda x: len([i for i in x.split(',') if int(i) in (2, 4)]) if isinstance(x, str) else 0)
+    df['B3-1'] = df['B3-1'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['B3-2'] = df['B3-2'].apply(lambda x: round(np.mean([float(num) for num in x.split(',')]), 2) if isinstance(x, str) else 0)
+    df['B4-1'] = df['B4-1'].apply(lambda x: len([int(i) for i in x.split(',') if int(i) in (2, 4, 6)]) if isinstance(x, str) else 0)
+    df['B4-2'] = df['B4-2'].apply(lambda x: round(np.mean([float(num) for num in x.split(',')]), 2) if isinstance(x, str) else 0)
+    df['B5-1'] = df['B5-1'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['B5-2'] = df['B5-2'].apply(lambda x: round(np.mean([float(num) for num in x.split(',')]), 2) if isinstance(x, str) else 0)
+    df['B6'] = df['B6'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['B7'] = df['B7'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['B8'] = df['B8'].apply(lambda x: x.split(',').count('2') if isinstance(x, str) else 0)
+    df['B10-6'] = df['B10-6'].apply(lambda x: 20 - int(x) if pd.notna(x) else 0)
 
     # 모델 B 학습에 사용된 피처만 선택 (Test_id는 나중에 사용하기 위해 포함)
     feature_cols = ['Test_id', 'Age', 'B1-1', 'B1-3', 'B2-1', 'B2-3', 'B3-1', 'B3-2', 'B4-1', 'B4-2', 'B5-1',
@@ -87,21 +81,34 @@ def preprocess_B(train_B):
 DROP_COLS = ["Test_id","Test","PrimaryKey","Age","TestDate"]
 
 def align_to_model(X_df, model):
-    feat_names = list(getattr(model, "feature_name_", []))
-    # If the model has no feature names, we must rely on the columns from preprocessing
+    """
+    모델이 학습 시 사용한 피처에 맞춰 입력 데이터프레임을 정렬하고 보정합니다.
+    다양한 종류의 모델(scikit-learn, LightGBM 등)을 지원합니다.
+    """
+    # 1. 모델에 저장된 피처 이름 가져오기 (다양한 라이브러리 호환)
+    feat_names = []
+    if hasattr(model, 'feature_name_') and callable(model.feature_name_):
+        feat_names = model.feature_name_()  # LightGBM
+    elif hasattr(model, 'feature_names_in_'):
+        feat_names = model.feature_names_in_  # Scikit-learn
+    
+    feat_names = list(feat_names)
+
+    # 2. 피처 이름이 모델에 없는 경우 (e.g., NumPy 배열로 학습된 LogisticRegression)
     if not feat_names:
-        # Fallback: use all numeric columns except Test_id
+        print("Warning: Model does not contain feature names. Falling back to numeric columns.")
         X = X_df.drop(columns=['Test_id'], errors='ignore').select_dtypes(include=np.number).copy()
-        # 모델이 기대하는 피처 개수와 맞는지 확인
+        
         expected_features = getattr(model, "n_features_in_", -1)
         if expected_features != -1 and X.shape[1] != expected_features:
-            print(f"Warning: Number of features mismatch. Got {X.shape[1]}, but model expects {expected_features}.")
+            raise ValueError(f"Feature count mismatch! Model expects {expected_features} features, but got {X.shape[1]}.")
         return X.fillna(0.0)
-    # 누락 피처 0으로 채움
+
+    # 3. 피처 이름이 모델에 있는 경우
+    X = X_df.copy()
     for c in feat_names:
         if c not in X.columns:
             X[c] = 0.0
-    # 초과 피처 드롭 + 순서 일치
     X = X[feat_names]
     return X.apply(pd.to_numeric, errors="coerce").fillna(0.0)
 
@@ -127,24 +134,19 @@ def main():
     meta = pd.read_csv(os.path.join(TEST_DIR, "test.csv"))
     Araw = pd.read_csv(os.path.join(TEST_DIR, "./test/A.csv"))
     Braw = pd.read_csv(os.path.join(TEST_DIR, "./test/B.csv"))
+    Araw = pd.read_csv(os.path.join(TEST_DIR, "test/A.csv"))
+    Braw = pd.read_csv(os.path.join(TEST_DIR, "test/B.csv"))
     print(f" meta={len(meta)}, Araw={len(Araw)}, Braw={len(Braw)}")
     
     # ---- 매핑 ----
+    # Araw, Braw에 'Test' 컬럼이 존재하므로 ["Test_id", "Test"]를 기준으로 merge
     A_df = meta.loc[meta["Test"] == "A", ["Test_id", "Test"]].merge(Araw, on=["Test_id", "Test"], how="left")
     B_df = meta.loc[meta["Test"] == "B", ["Test_id", "Test"]].merge(Braw, on=["Test_id", "Test"], how="left")
     print(f" mapped: A={len(A_df)}, B={len(B_df)}")
-    # [디버깅] merge 직후 'Test' 컬럼 존재 여부 확인
-    print(f"DEBUG: 'Test' in A_df after merge? {'Test' in A_df.columns}")
-    print(f"DEBUG: 'Test' in B_df after merge? {'Test' in B_df.columns}")
-    print("-" * 30)
 
     # ---- 전처리 ----
     A_df = preprocess_A(A_df)
     B_df = preprocess_B(B_df)
-    # [디버깅] 전처리 함수 실행 후 'Test' 컬럼 존재 여부 확인
-    print(f"DEBUG: 'Test' in A_df after preprocess? {'Test' in A_df.columns}")
-    print(f"DEBUG: 'Test' in B_df after preprocess? {'Test' in B_df.columns}")
-    print("-" * 30)
 
     # ---- 피처 정렬/보정 ----
     XA = align_to_model(A_df, model_A)
